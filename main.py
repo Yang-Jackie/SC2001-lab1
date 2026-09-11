@@ -199,5 +199,5 @@ if __name__ == "__main__":
     sanity_check()
     dataset = data_generator.dataset(100)
     S = 32
-    plot_over_input_size(dataset, S)
-    # plot_over_s(30, [1000, 100_000, 10_000_000], [4, 8, 16, 24, 32, 48, 64])
+    # plot_over_input_size(dataset, S)
+    plot_over_s(30, [1000, 100_000, 10_000_000], [4, 8, 16, 24, 32, 48, 64])
