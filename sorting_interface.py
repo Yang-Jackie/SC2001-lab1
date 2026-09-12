@@ -1,11 +1,24 @@
 import time
 import numpy as np
+import algorithms as algorithms_python
 
-import cppimport.import_hook
-algorithms_cpp = cppimport.imp("algorithms_cpp")
+
+_backend = algorithms_python
+_using_cpp = False
+
+def select_backend(use_cpp: bool):
+    global _backend, _using_cpp
+    if use_cpp:
+        import cppimport.import_hook
+        algorithms_cpp = cppimport.imp("algorithms_cpp")
+        _backend = algorithms_cpp
+        _using_cpp = True
+    else:
+        _backend = algorithms_python
+        _using_cpp = False
 
 def hybrid_sort(arr: list | np.ndarray, s) -> tuple[list, int, float]:
-    return algorithms_cpp.hybrid_sort(arr, s)
+    return _backend.hybrid_sort(arr, s)
 
 def merge_sort(arr: list | np.ndarray) -> tuple[list, int, float]:
-    return algorithms_cpp.merge_sort(arr)
+    return _backend.merge_sort(arr)
