@@ -19,7 +19,6 @@ using RunResult = std::tuple<std::vector<int>, int, double>;
 int _insertion_sort(std::vector<int>& arr, int l, int r) {
     int comparisons = 0;
 
-    int n = arr.size();
     for (int i = l+1; i < r; ++i) {
         int j = i;
         while (j > l && arr[j] < arr[j - 1]) {
@@ -34,53 +33,52 @@ int _insertion_sort(std::vector<int>& arr, int l, int r) {
 
     return comparisons;
 }
-int _merge(std::vector<int>& arr, std::vector<int>& buffer, int l, int mid, int r) {
-    std::vector<int>::iterator itr = buffer.begin() + l;
+int _merge(std::vector<int>& arr, int l, int mid, int r) {
+    std::vector<int> left(arr.begin() + l, arr.begin() + mid);
+    std::vector<int> right(arr.begin() + mid, arr.begin() + r);
+    std::vector<int>::iterator itr = arr.begin() + l;
     int comparisons = 0;
 
-    size_t i = l, j = mid;
-    while (i < mid && j < r) {
-        if (arr[i] < arr[j]) {
-            *(itr++) = arr[i++];
+    size_t i = 0, j = 0;
+    while (i < left.size() && j < right.size()) {
+        if (left[i] < right[j]) {
+            *(itr++) = left[i++];
         } else {
-            *(itr++) = arr[j++];
+            *(itr++) = right[j++];
         }
         ++comparisons; // Count the comparison made during merging
     }
 
     // Append remaining elements
-    while (i < mid) {
-        *(itr++) = arr[i++];
+    while (i < left.size()) {
+        *(itr++) = left[i++];
     }
-    while (j < r) {
-        *(itr++) = arr[j++];
+    while (j < right.size()) {
+        *(itr++) = right[j++];
     }
-
-    for (int i=l; i<r; i++) arr[i] = buffer[i];
 
     return comparisons;
 }
 
-int _hybrid_sort(std::vector<int>& arr, std::vector<int>& buffer, int l, int r, int s) {
+int _hybrid_sort(std::vector<int>& arr, int l, int r, int s) {
     if (r - l <= s) {
         return _insertion_sort(arr, l, r);
     }
 
     int mid = (r+l) >> 1;
-    int left_comparisons = _hybrid_sort(arr, buffer, l, mid, s);
-    int right_comparisons = _hybrid_sort(arr, buffer, mid, r, s);
+    int left_comparisons = _hybrid_sort(arr, l, mid, s);
+    int right_comparisons = _hybrid_sort(arr, mid, r, s);
 
-    int merged_comparisons = _merge(arr, buffer, l, mid, r);
+    int merged_comparisons = _merge(arr, l, mid, r);
 
     return left_comparisons + right_comparisons + merged_comparisons;
 }
 
 
 RunResult hybrid_sort(std::vector<int>& arr, int threshold) {
-    std::vector<int> buf(arr.begin(), arr.end());
     auto start = std::chrono::steady_clock::now();
 
-    int res = _hybrid_sort(arr, buf, 0, arr.size(), threshold);
+    int res = _hybrid_sort(arr, 0, arr.size(), threshold);
 
     auto end = std::chrono::steady_clock::now();
 
@@ -90,10 +88,9 @@ RunResult hybrid_sort(std::vector<int>& arr, int threshold) {
 }
 
 RunResult merge_sort(std::vector<int>& arr) {
-    std::vector<int> buf(arr.begin(), arr.end());
     auto start = std::chrono::steady_clock::now();
 
-    int res = _hybrid_sort(arr, buf, 0, arr.size(), 1);
+    int res = _hybrid_sort(arr, 0, arr.size(), 1);
 
     auto end = std::chrono::steady_clock::now();
 

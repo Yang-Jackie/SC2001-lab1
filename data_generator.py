@@ -1,7 +1,7 @@
 import random
 import numpy as np
 
-#random.seed(42)
+random.seed(42)
 
 def generate(n: int, x: int = 1_000_000_000):
     # Generate random np array for better performance

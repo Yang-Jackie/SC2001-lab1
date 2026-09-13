@@ -86,15 +86,17 @@ def plot_comparisons_and_durations(
 def sanity_check():
     arr = [5, 2, 9, 1, 5, 6]
     print(f"Original array: {arr}")
-    arr, comparisons, _ = sorting_interface.hybrid_sort(arr, 16)
-    print(f"Sorted array: {arr}\nComparisons made: {comparisons}")
+    sorted_arr, comparisons, _ = sorting_interface.hybrid_sort(arr, 3)
+    print(f"Original array after sorting: {arr}")
+    print(f"Sorted array: {sorted_arr}\nComparisons made: {comparisons}")
 
     arr = data_generator.generate(20, 100)
     print(f"Original array: {arr}")
-    arr, comparisons, _ = sorting_interface.hybrid_sort(arr, 16)
-    print(f"Sorted array: {arr}\nComparisons made: {comparisons}")
+    sorted_arr, comparisons, _ = sorting_interface.hybrid_sort(arr, 3)
+    print(f"Original array after sorting: {arr}")
+    print(f"Sorted array: {sorted_arr}\nComparisons made: {comparisons}")
 
-def benchmark(dataset, S):
+def benchmark(dataset, S, log_progress: bool = False):
     input_sizes = []
     comparisons = []
     durations = []
@@ -116,15 +118,31 @@ def benchmark(dataset, S):
 
     return input_sizes, comparisons, durations
 
-def plot_over_input_size(dataset, S):
-    input_sizes, comparisons, durations = benchmark(dataset, S)
+def plot_over_input_size(dataset, S, show_plot: bool = False):
+    input_sizes, comparisons, durations = benchmark(dataset, S, log_progress = True)
 
     fig, (ax_comparisons, ax_duration), lines = plot_comparisons_and_durations(
         input_sizes,
         comparisons,
         durations,
-        title=f"Hybrid Merge Sort vs Input Size (S={S})",
-        x_label="Input size"
+        title=f"Hybrid Merge Sort vs Input Size (S={S}) on {len(input_sizes)} sample",
+        x_label="Input size",
+        duration_style={
+            "marker": None
+        },
+    )
+
+    theoretical_comparisons = [
+        n * math.log2(n)
+        for n in input_sizes
+    ]
+
+    theoretical_line, = ax_comparisons.plot(
+        input_sizes,
+        theoretical_comparisons,
+        color="black",
+        linestyle="--",
+        label="O($n\log_2 n$)",
     )
 
     ax_comparisons.xaxis.set_major_formatter(
@@ -134,15 +152,18 @@ def plot_over_input_size(dataset, S):
         StrMethodFormatter("{x:,.0f}")
     )
 
+    legend_lines = [*lines, theoretical_line]
+
     ax_comparisons.legend(
-        lines,
-        [line.get_label() for line in lines],
+        legend_lines,
+        [line.get_label() for line in legend_lines],
     )
 
     fig.tight_layout()
-    plt.show()
+    plt.savefig("outputs/plot_over_n.png", dpi=300)
+    if show_plot: plt.show()
 
-def plot_over_s(n_samples: int, sizes: list, thresholds: list):
+def plot_over_s(n_samples: int, sizes: list, thresholds: list, show_plot: bool = False):
     n_cols = 2
     n_rows = math.ceil(len(sizes) / n_cols)
 
@@ -164,46 +185,24 @@ def plot_over_s(n_samples: int, sizes: list, thresholds: list):
         sample_durations = [[] for _ in range(n_samples)]
 
         for s in thresholds:
-            total_comparisons = 0
-            total_duration = 0
-
             print(f"Processing size={size}, threshold={s}...")
-
-            for sample_index, arr in enumerate(dataset):
-                _, comp, duration = sorting_interface.hybrid_sort(
-                    arr, s
-                )
-
-                total_comparisons += comp
-                total_duration += duration
-                sample_durations[sample_index].append(duration)
+            _, comparisons, durations = benchmark(dataset, s)
 
             average_comparisons.append(
-                total_comparisons / n_samples
+                sum(comparisons) / len(comparisons)
             )
             average_durations.append(
-                total_duration / n_samples
+                sum(durations) / len(durations)
             )
 
-        # Left y-axis: comparisons
-        line1 = ax.plot(
-            thresholds,
-            average_comparisons,
-            marker='o',
-            label='Comparisons'
-        )
+            for sample_index, duration in enumerate(durations):
+                sample_durations[sample_index].append(duration)
 
-        ax.set_title(f'n = {size:,}')
-        ax.set_xlabel('Threshold S')
-        ax.set_ylabel('Key Comparisons')
-        ax.grid()
+        ax_duration = ax.twinx()
+        sample_line = None
 
-        # Right y-axis: duration
-        ax_time = ax.twinx()
-
-        sample_lines = []
         for sample_index, durations in enumerate(sample_durations):
-            line = ax_time.plot(
+            line, = ax_duration.plot(
                 thresholds,
                 durations,
                 color='tab:orange',
@@ -212,25 +211,26 @@ def plot_over_s(n_samples: int, sizes: list, thresholds: list):
                 label='Sample durations' if sample_index == 0 else None
             )
             if sample_index == 0:
-                sample_lines = line
+                sample_line = line
 
-        line2 = ax_time.plot(
+        _, _, average_lines = plot_comparisons_and_durations(
             thresholds,
+            average_comparisons,
             average_durations,
-            color='tab:red',
-            marker='x',
-            linestyle='--',
-            linewidth=2,
-            label='Average duration'
+            axes=(ax, ax_duration),
+            title=f"n = {size:,}",
+            x_label="Threshold S",
         )
 
-        ax_time.set_ylabel('Duration (s)')
+        legend_lines = [
+            average_lines[0],
+            sample_line,
+            average_lines[1],
+        ]
 
-        # Combined legend
-        lines = line1 + sample_lines + line2
         ax.legend(
-            lines,
-            [line.get_label() for line in lines]
+            legend_lines,
+            [line.get_label() for line in legend_lines],
         )
 
     print(
@@ -243,104 +243,86 @@ def plot_over_s(n_samples: int, sizes: list, thresholds: list):
 
     plt.tight_layout()
     plt.savefig("outputs/plot_over_s.png", dpi=300)
-    plt.show()
+    if show_plot: plt.show()
 
-def compare_hybrid_merge(dataset, S):
-    dataset = list(dataset)
+def compare_hybrid_merge(dataset, S, show_plot: bool = False):
 
     input_sizes, hybrid_comparisons, hybrid_durations = benchmark(dataset, S)
     _, merge_comparisons, merge_durations = benchmark(dataset, 1)
 
-    # Asymptotic reference, not an exact upper bound.
-    n_log_n = [
-        n * math.log2(n) if n > 1 else 0
-        for n in input_sizes
-    ]
+    # Exact worst-case comparison count for merge sort.
+    theoretical_comparisons = []
+    for n in input_sizes:
+        if n <= 1:
+            theoretical_comparisons.append(0)
+        else:
+            theoretical_comparisons.append(
+                n * math.log2(n)
+            )
 
-    fig, ax_comparisons = plt.subplots(figsize=(11, 7))
-    ax_duration = ax_comparisons.twinx()
+    fig, (ax_comparisons, ax_duration) = plt.subplots(
+        1,
+        2,
+        figsize=(14, 6),
+    )
 
-    # Left axis: comparison counts
-    hybrid_comp_line, = ax_comparisons.plot(
+    ax_comparisons.plot(
         input_sizes,
         hybrid_comparisons,
         color="tab:blue",
         marker="o",
-        markersize=4,
-        label=f"Hybrid comparisons (S={S})",
+        label=f"Hybrid sort (S={S})",
     )
-
-    merge_comp_line, = ax_comparisons.plot(
+    ax_comparisons.plot(
         input_sizes,
         merge_comparisons,
-        color="tab:cyan",
+        color="tab:orange",
         marker="s",
-        markersize=4,
-        linestyle="--",
-        label="Merge-sort comparisons",
+        label="Merge sort",
     )
-
-    theoretical_line, = ax_comparisons.plot(
+    ax_comparisons.plot(
         input_sizes,
-        n_log_n,
+        theoretical_comparisons,
         color="black",
-        linestyle=":",
-        linewidth=2,
-        label=r"$n\log_2(n)$ reference",
+        linestyle="--",
+        label=r"O($n\log_2 n$)",
     )
 
-    # Right axis: measured durations
-    hybrid_time_line, = ax_duration.plot(
+    ax_duration.plot(
         input_sizes,
         hybrid_durations,
-        color="tab:red",
-        marker="x",
-        markersize=4,
-        label=f"Hybrid runtime (S={S})",
+        color="tab:blue",
+        marker="o",
+        label=f"Hybrid sort (S={S})",
     )
-
-    merge_time_line, = ax_duration.plot(
+    ax_duration.plot(
         input_sizes,
         merge_durations,
         color="tab:orange",
-        marker="^",
-        markersize=4,
-        linestyle="--",
-        label="Merge-sort runtime",
+        marker="s",
+        label="Merge sort",
     )
 
-    ax_comparisons.set_title(
-        f"Hybrid Sort vs Merge Sort (S={S})"
-    )
+    ax_comparisons.set_title("Number of comparisons")
     ax_comparisons.set_xlabel("Input size, n")
     ax_comparisons.set_ylabel("Number of key comparisons")
+
+    ax_duration.set_title("Duration")
+    ax_duration.set_xlabel("Input size, n")
     ax_duration.set_ylabel("Runtime (seconds)")
 
-    ax_comparisons.xaxis.set_major_formatter(
-        StrMethodFormatter("{x:,.0f}")
-    )
+    for ax in (ax_comparisons, ax_duration):
+        ax.xaxis.set_major_formatter(StrMethodFormatter("{x:,.0f}"))
+        ax.grid(alpha=0.3)
+        ax.legend()
+
     ax_comparisons.yaxis.set_major_formatter(
         StrMethodFormatter("{x:,.0f}")
     )
 
-    ax_comparisons.grid(alpha=0.3)
-
-    lines = [
-        hybrid_comp_line,
-        merge_comp_line,
-        theoretical_line,
-        hybrid_time_line,
-        merge_time_line,
-    ]
-
-    ax_comparisons.legend(
-        lines,
-        [line.get_label() for line in lines],
-        loc="upper left",
-    )
-
     fig.tight_layout()
-    plt.show()
+    plt.savefig("outputs/plot_hybrid_vs_merge.png", dpi=300)
+    if show_plot: plt.show()
 
 
 if __name__ == "__main__":
@@ -354,9 +336,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     sorting_interface.select_backend(use_cpp=args.cpp)
+
     sanity_check()
-    dataset = data_generator.dataset(100)
-    S = 32
-    plot_over_input_size(dataset, S)
-    # plot_over_s(30, [1000, 100_000, 10_000_000], [4, 8, 16, 24, 32, 48, 64, 128])
+
+    dataset = list(data_generator.dataset(100))
+
+    plot_over_input_size(dataset, S=16, show_plot=True)
+
+    # plot_over_s(30, [1000, 100_000, 10_000_000], [4, 8, 16, 32, 64, 128, 256])
+
+    # S = 64
     # compare_hybrid_merge(dataset, S)
